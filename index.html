@@ -273,20 +273,20 @@
             <button class="btn btn-secondary" onclick="changeUser()">Cambia Allievo</button>
         </div>
         
-        <h3>📂 Selezione File Excel dei Quiz</h3>
+        <h3>📂 Archivio Quiz Ufficiale</h3>
         
-        <div class="section-box" id="lastFileBox" style="display: none;">
-            <p><strong>Conferma l'ultimo file utilizzato:</strong></p>
+        <div class="section-box">
+            <p><strong>Usa il file ufficiale predefinito caricato online:</strong></p>
             <div class="file-info">
-                File attualmente memorizzato: <b id="fileNameDisplay"></b>
+                File predefinito: <b>quiz_ufficiale.xlsx</b>
             </div>
-            <button class="btn" onclick="confirmDefaultOrLastFile()">Conferma e Procedi con questo File</button>
+            <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale</button>
         </div>
 
         <div class="section-box">
-            <p><strong>Carica il file Excel (.xlsx) dei quiz:</strong></p>
+            <p><strong>Oppure carica temporaneamente un file Excel dal dispositivo:</strong></p>
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"><br><br>
-            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica e Usa File</button>
+            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica File Locale</button>
         </div>
     </div>
 
@@ -387,15 +387,18 @@
 </script>
 
 <script>
+    const OFFICIAL_EXCEL_FILENAME = "quiz_ufficiale.xlsx";
+
     let userDatabase = [];
     let currentName = "";
-    let currentFileKey = "";
+    let currentFileKey = OFFICIAL_EXCEL_FILENAME;
     let questionsPool = [];
     let errorHistory = [];
     let errorCount = 0;
     let currentQuestion = null;
     let isWaitingForNext = false;
     let isReviewMode = false;
+    let isFetchingDefault = false;
 
     function sanitizeKey(str) {
         return str.replace(/[\.#\$\[\]\/]/g, "_");
@@ -529,12 +532,8 @@
         if (savedName && userDatabase.includes(savedName)) {
             currentName = savedName;
             let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-            if (lastFile) {
-                currentFileKey = lastFile;
-                showFileSelectionSection();
-            } else {
-                showFileSelectionSection();
-            }
+            currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
+            showFileSelectionSection();
         }
     }
 
@@ -616,7 +615,7 @@
         currentName = nome;
         localStorage.setItem("nautica_current_name", currentName);
         let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-        currentFileKey = lastFile ? lastFile : "";
+        currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
         showFileSelectionSection();
     }
 
@@ -628,20 +627,12 @@
         document.getElementById('file-selection-section').style.display = 'block';
         
         document.getElementById('displayUserFile').innerText = `Allievo: ${currentName}`;
-        
-        const lastFileBox = document.getElementById('lastFileBox');
-        if (currentFileKey) {
-            document.getElementById('fileNameDisplay').innerText = currentFileKey;
-            lastFileBox.style.display = 'block';
-        } else {
-            lastFileBox.style.display = 'none';
-        }
     }
 
     function changeUser() {
         localStorage.removeItem("nautica_current_name");
         currentName = "";
-        currentFileKey = "";
+        currentFileKey = OFFICIAL_EXCEL_FILENAME;
         document.getElementById('quiz-section').style.display = 'none';
         document.getElementById('review-section').style.display = 'none';
         document.getElementById('upload-section').style.display = 'none';
@@ -693,10 +684,12 @@
         await cloudLoadProgress();
 
         const statusEl = document.getElementById('poolStatusDisplay');
-        if (questionsPool.length > 0) {
+        if (isFetchingDefault) {
+            statusEl.innerText = "⏳ Caricamento quiz ufficiale in corso...";
+        } else if (questionsPool.length > 0) {
             statusEl.innerText = `Domande pronte/rimanenti nel ciclo: ${questionsPool.length}`;
         } else {
-            statusEl.innerText = "Nessuna sessione attiva (carica o seleziona un file Excel)";
+            statusEl.innerText = "Nessuna sessione attiva (pronto per nuovo ciclo)";
         }
         
         document.getElementById('viewErrorsBtn').innerText = `📖 Visualizza Elenco Domande Errate (${errorHistory.length})`;
@@ -706,19 +699,38 @@
         reviewBtn.style.display = errorHistory.length > 0 ? 'inline-block' : 'none';
     }
 
-    async function confirmDefaultOrLastFile() {
-        if (!currentFileKey) {
-            alert("Nessun file precedente memorizzato. Seleziona un file Excel.");
-            return;
-        }
+    async function loadDefaultOfficialFile() {
+        currentFileKey = OFFICIAL_EXCEL_FILENAME;
         localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
-        await proceedToMenu();
+        
+        isFetchingDefault = true;
+        showUploadSection();
+        updateMenuStatus();
+
+        try {
+            const response = await fetch(OFFICIAL_EXCEL_FILENAME);
+            if (!response.ok) throw new Error("File quiz_ufficiale.xlsx non trovato nella repository.");
+            const arrayBuffer = await response.arrayBuffer();
+            
+            // Controlla se c'è un pool salvato in precedenza
+            let hasCloudData = await cloudLoadProgress();
+            if (!hasCloudData || questionsPool.length === 0) {
+                errorCount = 0;
+                errorHistory = [];
+                processExcelDataQuietly(arrayBuffer);
+            }
+        } catch (error) {
+            alert(`Impossibile trovare o caricare "${OFFICIAL_EXCEL_FILENAME}" su GitHub. Assicurati di aver caricato il file Excel con questo esatto nome nella stessa cartella della pagina web.`);
+        } finally {
+            isFetchingDefault = false;
+            await updateMenuStatus();
+        }
     }
 
     function loadCustomExcel() {
         const fileInput = document.getElementById('excelFile');
         if (fileInput.files.length === 0) {
-            alert("Seleziona prima un file Excel!");
+            alert("Seleziona prima un file Excel dal dispositivo!");
             return;
         }
 
@@ -734,7 +746,8 @@
 
             if (hasCloudData && questionsPool.length > 0) {
                 if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande dal file Excel.`)) {
-                    await proceedToMenu();
+                    showUploadSection();
+                    await updateMenuStatus();
                     fileInput.value = "";
                     return;
                 }
@@ -745,7 +758,8 @@
             const loaded = processExcelDataQuietly(e.target.result);
             fileInput.value = "";
             if (loaded) {
-                await proceedToMenu();
+                showUploadSection();
+                await updateMenuStatus();
             } else {
                 alert("Il file Excel selezionato non contiene domande valide nel formato atteso.");
             }
@@ -754,14 +768,11 @@
         reader.readAsArrayBuffer(file);
     }
 
-    async function proceedToMenu() {
+    function showUploadSection() {
         document.getElementById('file-selection-section').style.display = 'none';
         document.getElementById('upload-section').style.display = 'block';
         document.getElementById('displayUser').innerText = `Allievo: ${currentName}`;
         document.getElementById('activeFileDisplay').innerText = currentFileKey;
-
-        await cloudLoadProgress();
-        await updateMenuStatus();
     }
 
     function processExcelDataQuietly(arrayBuffer) {
@@ -829,23 +840,31 @@
             questionsPool = [];
             errorHistory = [];
             errorCount = 0;
-            alert("Progressi azzerati. Ricarica il file Excel per iniziare un nuovo ciclo.");
-            backToFileSelection();
+            if (currentFileKey === OFFICIAL_EXCEL_FILENAME) {
+                await loadDefaultOfficialFile();
+            } else {
+                alert("Progressi azzerati. Ricarica il file Excel per iniziare un nuovo ciclo.");
+                backToFileSelection();
+            }
         }
     }
 
     async function startQuizSessionFromMenu() {
-        if (!currentFileKey) {
-            alert("Seleziona prima o carica un file Excel.");
-            backToFileSelection();
+        if (isFetchingDefault) {
+            alert("Attendi un istante, caricamento del file in corso...");
             return;
         }
 
         await cloudLoadProgress();
 
         if (!questionsPool || questionsPool.length === 0) {
-            alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel' e carica il file.");
-            return;
+            if (currentFileKey === OFFICIAL_EXCEL_FILENAME) {
+                await loadDefaultOfficialFile();
+                if (questionsPool.length === 0) return;
+            } else {
+                alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel'.");
+                return;
+            }
         }
 
         isReviewMode = false;
