@@ -279,16 +279,16 @@
         <div class="section-box">
             <p><strong>Opzione 1: Usa il file ufficiale online (GitHub)</strong></p>
             <div class="file-info">
-                File predefinito: <b id="officialFileNameDisplay">Quiz capacità prof Campania.xlsx</b>
+                File predefinito: <b id="officialFileNameDisplay">quiz_ufficiale.xlsx</b>
             </div>
             <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale da GitHub</button>
         </div>
 
-        <!-- Opzione 2: Carica dal dispositivo -->
+        <!-- Opzione 2: Carica dal dispositivo (Caricamento immediato al tocco) -->
         <div class="section-box">
-            <p><strong>Opzione 2: Carica un file Excel dal dispositivo</strong></p>
-            <input type="file" id="excelFile"><br><br>
-            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica File Locale</button>
+            <p><strong>Opzione 2: Scegli un file Excel dal tuo dispositivo</strong></p>
+            <input type="file" id="excelFile" onchange="loadCustomExcel(event)"><br>
+            <p style="font-size: 12px; color: #666; margin-top: 8px;">(Il file si caricherà automaticamente non appena lo selezioni)</p>
         </div>
     </div>
 
@@ -389,7 +389,8 @@
 </script>
 
 <script>
-    const OFFICIAL_EXCEL_FILENAME = "Quiz capacità prof Campania.xlsx";
+    // Nome del file ufficiale su GitHub (rinominalo senza spazi in GitHub, es: quiz_ufficiale.xlsx)
+    const OFFICIAL_EXCEL_FILENAME = "quiz_ufficiale.xlsx";
 
     let userDatabase = [];
     let currentName = "";
@@ -722,22 +723,19 @@
                 processExcelDataQuietly(arrayBuffer);
             }
         } catch (error) {
-            alert(`Impossibile trovare o caricare "${OFFICIAL_EXCEL_FILENAME}" da GitHub. Assicurati che il nome nel codice corrisponda esattamente a quello caricato online.`);
+            alert(`Impossibile trovare "${OFFICIAL_EXCEL_FILENAME}" su GitHub. Assicurati di aver caricato il file Excel nella repository con questo esatto nome (senza spazi).`);
+            backToFileSelection();
         } finally {
             isFetchingDefault = false;
             await updateMenuStatus();
         }
     }
 
-    // Funzione ottimizzata per leggere i file locali anche da telefono
-    function loadCustomExcel() {
-        const fileInput = document.getElementById('excelFile');
-        if (!fileInput.files || fileInput.files.length === 0) {
-            alert("Seleziona prima un file Excel dal tuo dispositivo!");
-            return;
-        }
+    // Caricamento immediato quando l'utente seleziona il file locale (funziona perfettamente anche su smartphone)
+    function loadCustomExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
 
-        const file = fileInput.files[0];
         currentFileKey = file.name;
         localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
 
@@ -752,7 +750,7 @@
                     if (!confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande.`)) {
                         showUploadSection();
                         await updateMenuStatus();
-                        fileInput.value = "";
+                        event.target.value = "";
                         return;
                     }
                 }
@@ -760,13 +758,13 @@
                 errorCount = 0;
                 errorHistory = [];
                 const loaded = processExcelDataQuietly(e.target.result);
-                fileInput.value = "";
+                event.target.value = "";
                 
                 if (loaded) {
                     showUploadSection();
                     await updateMenuStatus();
                 } else {
-                    alert("Il file selezionato non contiene domande valide nel formato atteso (controlla le colonne delle domande e delle risposte).");
+                    alert("Il file selezionato non contiene domande valide nel formato atteso.");
                 }
             } catch (err) {
                 alert("Errore durante l'elaborazione del file.");
