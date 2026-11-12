@@ -275,18 +275,18 @@
         
         <h3>📂 Selezione File Excel dei Quiz</h3>
         
-        <div class="section-box">
-            <p><strong>Usa il file predefinito o conferma l'ultimo utilizzato:</strong></p>
+        <div class="section-box" id="lastFileBox" style="display: none;">
+            <p><strong>Conferma l'ultimo file utilizzato:</strong></p>
             <div class="file-info">
-                File attualmente memorizzato: <b id="fileNameDisplay">generatore quiz nautica ultimo.xlsx</b>
+                File attualmente memorizzato: <b id="fileNameDisplay"></b>
             </div>
             <button class="btn" onclick="confirmDefaultOrLastFile()">Conferma e Procedi con questo File</button>
         </div>
 
         <div class="section-box">
-            <p><strong>Oppure carica un nuovo file Excel (.xlsx):</strong></p>
+            <p><strong>Carica il file Excel (.xlsx) dei quiz:</strong></p>
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"><br><br>
-            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica e Usa Nuovo File</button>
+            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica e Usa File</button>
         </div>
     </div>
 
@@ -378,7 +378,6 @@
         window.fbRemove = remove;
         window.isFirebaseReady = true;
     } catch (err) {
-        console.warn("Firebase non inizializzato, utilizzo localStorage puro.", err);
         window.isFirebaseReady = false;
     }
 
@@ -388,24 +387,20 @@
 </script>
 
 <script>
-    const DEFAULT_EXCEL_FILENAME = "generatore quiz nautica ultimo.xlsx";
-
     let userDatabase = [];
     let currentName = "";
-    let currentFileKey = DEFAULT_EXCEL_FILENAME;
+    let currentFileKey = "";
     let questionsPool = [];
     let errorHistory = [];
     let errorCount = 0;
     let currentQuestion = null;
     let isWaitingForNext = false;
     let isReviewMode = false;
-    let isFetchingDefault = false;
 
     function sanitizeKey(str) {
         return str.replace(/[\.#\$\[\]\/]/g, "_");
     }
 
-    // Gestione dati ibrida con fallback immediato su localStorage se Firebase è lento o assente
     async function cloudSaveUsers(usersList) {
         localStorage.setItem("nautica_db_utenti", JSON.stringify(usersList));
         if (window.isFirebaseReady && window.fbDb) {
@@ -416,7 +411,6 @@
     }
 
     async function cloudLoadUsers() {
-        // Carica subito da localStorage come base istantanea
         let rawDb = localStorage.getItem("nautica_db_utenti");
         if (rawDb) {
             try {
@@ -425,7 +419,6 @@
             } catch(e) { userDatabase = []; }
         }
 
-        // Prova a sincronizzare da Firebase in background se disponibile
         if (window.isFirebaseReady && window.fbDb) {
             try {
                 const snapshot = await window.fbGet(window.fbRef(window.fbDb, "utenti"));
@@ -442,6 +435,7 @@
     }
 
     async function cloudSaveProgress() {
+        if (!currentFileKey) return;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
@@ -466,6 +460,7 @@
     }
 
     async function cloudLoadProgress() {
+        if (!currentFileKey) return false;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
@@ -497,6 +492,7 @@
     }
 
     async function cloudRemoveProgress() {
+        if (!currentFileKey) return;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
@@ -533,8 +529,12 @@
         if (savedName && userDatabase.includes(savedName)) {
             currentName = savedName;
             let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-            currentFileKey = lastFile ? lastFile : DEFAULT_EXCEL_FILENAME;
-            showFileSelectionSection();
+            if (lastFile) {
+                currentFileKey = lastFile;
+                showFileSelectionSection();
+            } else {
+                showFileSelectionSection();
+            }
         }
     }
 
@@ -616,7 +616,7 @@
         currentName = nome;
         localStorage.setItem("nautica_current_name", currentName);
         let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-        currentFileKey = lastFile ? lastFile : DEFAULT_EXCEL_FILENAME;
+        currentFileKey = lastFile ? lastFile : "";
         showFileSelectionSection();
     }
 
@@ -628,12 +628,20 @@
         document.getElementById('file-selection-section').style.display = 'block';
         
         document.getElementById('displayUserFile').innerText = `Allievo: ${currentName}`;
-        document.getElementById('fileNameDisplay').innerText = currentFileKey;
+        
+        const lastFileBox = document.getElementById('lastFileBox');
+        if (currentFileKey) {
+            document.getElementById('fileNameDisplay').innerText = currentFileKey;
+            lastFileBox.style.display = 'block';
+        } else {
+            lastFileBox.style.display = 'none';
+        }
     }
 
     function changeUser() {
         localStorage.removeItem("nautica_current_name");
         currentName = "";
+        currentFileKey = "";
         document.getElementById('quiz-section').style.display = 'none';
         document.getElementById('review-section').style.display = 'none';
         document.getElementById('upload-section').style.display = 'none';
@@ -673,7 +681,7 @@
     });
 
     function getStorageKeys() {
-        let safeFileKey = currentFileKey.replace(/[^a-zA-Z0-9]/g, "_");
+        let safeFileKey = currentFileKey ? currentFileKey.replace(/[^a-zA-Z0-9]/g, "_") : "nofile";
         return {
             pool: `nautica_pool_${currentName}_${safeFileKey}`,
             errors: `nautica_errors_${currentName}_${safeFileKey}`,
@@ -685,12 +693,10 @@
         await cloudLoadProgress();
 
         const statusEl = document.getElementById('poolStatusDisplay');
-        if (isFetchingDefault) {
-            statusEl.innerText = "⏳ Caricamento domande in corso...";
-        } else if (questionsPool.length > 0) {
+        if (questionsPool.length > 0) {
             statusEl.innerText = `Domande pronte/rimanenti nel ciclo: ${questionsPool.length}`;
         } else {
-            statusEl.innerText = "Nessuna sessione attiva (pronto per nuovo ciclo)";
+            statusEl.innerText = "Nessuna sessione attiva (carica o seleziona un file Excel)";
         }
         
         document.getElementById('viewErrorsBtn').innerText = `📖 Visualizza Elenco Domande Errate (${errorHistory.length})`;
@@ -701,6 +707,10 @@
     }
 
     async function confirmDefaultOrLastFile() {
+        if (!currentFileKey) {
+            alert("Nessun file precedente memorizzato. Seleziona un file Excel.");
+            return;
+        }
         localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
         await proceedToMenu();
     }
@@ -723,7 +733,7 @@
             let hasCloudData = await cloudLoadProgress();
 
             if (hasCloudData && questionsPool.length > 0) {
-                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande dal nuovo file Excel.`)) {
+                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande dal file Excel.`)) {
                     await proceedToMenu();
                     fileInput.value = "";
                     return;
@@ -751,26 +761,7 @@
         document.getElementById('activeFileDisplay').innerText = currentFileKey;
 
         await cloudLoadProgress();
-
-        if (questionsPool.length === 0 && currentFileKey === DEFAULT_EXCEL_FILENAME) {
-            isFetchingDefault = true;
-            updateMenuStatus();
-            try {
-                const response = await fetch(DEFAULT_EXCEL_FILENAME);
-                if (!response.ok) throw new Error("File non trovato sul server.");
-                const arrayBuffer = await response.arrayBuffer();
-                errorCount = 0;
-                errorHistory = [];
-                processExcelDataQuietly(arrayBuffer);
-            } catch (error) {
-                console.warn(error);
-            } finally {
-                isFetchingDefault = false;
-                await updateMenuStatus();
-            }
-        } else {
-            await updateMenuStatus();
-        }
+        await updateMenuStatus();
     }
 
     function processExcelDataQuietly(arrayBuffer) {
@@ -838,48 +829,23 @@
             questionsPool = [];
             errorHistory = [];
             errorCount = 0;
-            if (currentFileKey === DEFAULT_EXCEL_FILENAME) {
-                await proceedToMenu();
-            } else {
-                alert("Progressi azzerati. Ricarica il file Excel per iniziare un nuovo ciclo.");
-                backToFileSelection();
-            }
+            alert("Progressi azzerati. Ricarica il file Excel per iniziare un nuovo ciclo.");
+            backToFileSelection();
         }
     }
 
     async function startQuizSessionFromMenu() {
-        if (isFetchingDefault) {
-            alert("Attendi un istante, caricamento del file in corso...");
+        if (!currentFileKey) {
+            alert("Seleziona prima o carica un file Excel.");
+            backToFileSelection();
             return;
         }
 
         await cloudLoadProgress();
 
         if (!questionsPool || questionsPool.length === 0) {
-            if (currentFileKey === DEFAULT_EXCEL_FILENAME) {
-                isFetchingDefault = true;
-                updateMenuStatus();
-                try {
-                    const response = await fetch(DEFAULT_EXCEL_FILENAME);
-                    if (!response.ok) throw new Error("File non trovato");
-                    const arrayBuffer = await response.arrayBuffer();
-                    isFetchingDefault = false;
-                    if (processExcelDataQuietly(arrayBuffer)) {
-                        isReviewMode = false;
-                        startQuizSession();
-                    } else {
-                        alert("Il file predefinito non contiene domande valide.");
-                    }
-                } catch(e) {
-                    isFetchingDefault = false;
-                    updateMenuStatus();
-                    alert(`Impossibile caricare automaticamente "${DEFAULT_EXCEL_FILENAME}". Clicca su "Cambia File Excel" e selezionalo manualmente.`);
-                }
-                return;
-            } else {
-                alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel' per ricaricare il file.");
-                return;
-            }
+            alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel' e carica il file.");
+            return;
         }
 
         isReviewMode = false;
