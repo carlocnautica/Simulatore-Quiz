@@ -284,10 +284,11 @@
             <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale da GitHub</button>
         </div>
 
-        <!-- Opzione 2: Carica dal computer -->
+        <!-- Opzione 2: Carica dal dispositivo -->
         <div class="section-box">
-            <p><strong>Opzione 2: Carica un file Excel dal tuo computer</strong></p>
-            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"><br><br>
+            <p><strong>Opzione 2: Carica un file Excel dal dispositivo</strong></p>
+            <!-- Rimosso l'attributo accept restrittivo per consentire la selezione anche da smartphone -->
+            <input type="file" id="excelFile"><br><br>
             <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica File Locale</button>
         </div>
     </div>
@@ -389,7 +390,6 @@
 </script>
 
 <script>
-    // Inserisci qui esattamente il nome del file Excel che hai caricato su GitHub
     const OFFICIAL_EXCEL_FILENAME = "Quiz capacità prof Campania.xlsx";
 
     let userDatabase = [];
@@ -733,7 +733,7 @@
     function loadCustomExcel() {
         const fileInput = document.getElementById('excelFile');
         if (fileInput.files.length === 0) {
-            alert("Seleziona prima un file Excel dal tuo computer!");
+            alert("Seleziona prima un file Excel dal tuo dispositivo!");
             return;
         }
 
@@ -764,8 +764,12 @@
                 showUploadSection();
                 await updateMenuStatus();
             } else {
-                alert("Il file Excel selezionato non contiene domande valide nel formato atteso.");
+                alert("Il file selezionato non è un file Excel valido o non contiene domande nel formato corretto.");
             }
+        };
+
+        reader.onerror = function() {
+            alert("Errore durante la lettura del file dal dispositivo.");
         };
 
         reader.readAsArrayBuffer(file);
