@@ -287,7 +287,6 @@
         <!-- Opzione 2: Carica dal dispositivo -->
         <div class="section-box">
             <p><strong>Opzione 2: Carica un file Excel dal dispositivo</strong></p>
-            <!-- Rimosso l'attributo accept restrittivo per consentire la selezione anche da smartphone -->
             <input type="file" id="excelFile"><br><br>
             <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica File Locale</button>
         </div>
@@ -730,9 +729,10 @@
         }
     }
 
+    // Funzione ottimizzata per leggere i file locali anche da telefono
     function loadCustomExcel() {
         const fileInput = document.getElementById('excelFile');
-        if (fileInput.files.length === 0) {
+        if (!fileInput.files || fileInput.files.length === 0) {
             alert("Seleziona prima un file Excel dal tuo dispositivo!");
             return;
         }
@@ -744,32 +744,37 @@
         const reader = new FileReader();
 
         reader.onload = async function(e) {
-            isReviewMode = false;
-            let hasCloudData = await cloudLoadProgress();
+            try {
+                isReviewMode = false;
+                let hasCloudData = await cloudLoadProgress();
 
-            if (hasCloudData && questionsPool.length > 0) {
-                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande.`)) {
+                if (hasCloudData && questionsPool.length > 0) {
+                    if (!confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande.`)) {
+                        showUploadSection();
+                        await updateMenuStatus();
+                        fileInput.value = "";
+                        return;
+                    }
+                }
+
+                errorCount = 0;
+                errorHistory = [];
+                const loaded = processExcelDataQuietly(e.target.result);
+                fileInput.value = "";
+                
+                if (loaded) {
                     showUploadSection();
                     await updateMenuStatus();
-                    fileInput.value = "";
-                    return;
+                } else {
+                    alert("Il file selezionato non contiene domande valide nel formato atteso (controlla le colonne delle domande e delle risposte).");
                 }
-            }
-
-            errorCount = 0;
-            errorHistory = [];
-            const loaded = processExcelDataQuietly(e.target.result);
-            fileInput.value = "";
-            if (loaded) {
-                showUploadSection();
-                await updateMenuStatus();
-            } else {
-                alert("Il file selezionato non è un file Excel valido o non contiene domande nel formato corretto.");
+            } catch (err) {
+                alert("Errore durante l'elaborazione del file.");
             }
         };
 
         reader.onerror = function() {
-            alert("Errore durante la lettura del file dal dispositivo.");
+            alert("Impossibile leggere il file selezionato dal dispositivo.");
         };
 
         reader.readAsArrayBuffer(file);
