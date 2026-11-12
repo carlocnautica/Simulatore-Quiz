@@ -708,12 +708,22 @@
     }
 
     async function updateMenuStatus() {
+        const statusEl = document.getElementById('poolStatusDisplay');
+        const startBtn = document.getElementById('startMainQuizBtn');
+
+        if (isFetchingDefault) {
+            statusEl.innerText = "⏳ Download ed elaborazione Excel in corso...";
+            startBtn.disabled = true;
+            startBtn.style.opacity = "0.6";
+            return;
+        }
+
         await cloudLoadProgress();
 
-        const statusEl = document.getElementById('poolStatusDisplay');
-        if (isFetchingDefault) {
-            statusEl.innerText = "⏳ Caricamento file in corso...";
-        } else if (questionsPool.length > 0) {
+        startBtn.disabled = false;
+        startBtn.style.opacity = "1";
+
+        if (questionsPool.length > 0) {
             statusEl.innerText = `Domande pronte/rimanenti nel ciclo: ${questionsPool.length}`;
         } else {
             statusEl.innerText = "Nessuna sessione attiva (pronto per nuovo ciclo)";
@@ -727,6 +737,8 @@
     }
 
     async function loadDefaultOfficialFile() {
+        if (isFetchingDefault) return;
+
         currentFileKey = OFFICIAL_EXCEL_FILENAME;
         try {
             localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
@@ -737,21 +749,24 @@
         updateMenuStatus();
 
         try {
-            const response = await fetch(OFFICIAL_EXCEL_FILENAME);
-            if (!response.ok) throw new Error("File non trovato.");
-            const arrayBuffer = await response.arrayBuffer();
-            
             let hasCloudData = await cloudLoadProgress();
+            
             if (!hasCloudData || questionsPool.length === 0) {
+                const response = await fetch(OFFICIAL_EXCEL_FILENAME + "?t=" + new Date().getTime());
+                if (!response.ok) throw new Error("File non trovato sul server.");
+                
+                const arrayBuffer = await response.arrayBuffer();
                 errorCount = 0;
                 errorHistory = [];
+                
                 const loaded = processExcelData(arrayBuffer);
                 if (!loaded) {
                     alert("Il file ufficiale non contiene domande valide o il formato non è corretto.");
                 }
             }
         } catch (error) {
-            alert(`⚠️ Impossibile caricare "${OFFICIAL_EXCEL_FILENAME}" via fetch.\n\nNota: Se apri la pagina direttamente in locale (file://), i browser bloccano la lettura automatica dei file.\n\n👉 Usa l'Opzione 2 sotto per selezionare direttamente il file Excel dal tuo computer.`);
+            console.error(error);
+            alert(`⚠️ Impossibile caricare "${OFFICIAL_EXCEL_FILENAME}". Verifica la connessione internet o usa l'Opzione 2.`);
             backToFileSelection();
         } finally {
             isFetchingDefault = false;
@@ -832,7 +847,6 @@
 
                 const domanda = String(row[0]).trim();
                 
-                // Salta eventuale riga di intestazione (header)
                 if (i === 0 && (domanda.toLowerCase().includes("domanda") || domanda.toLowerCase().includes("quesito"))) {
                     continue;
                 }
@@ -895,8 +909,11 @@
     }
 
     async function startQuizSessionFromMenu() {
-        if (isFetchingDefault) {
-            alert("Attendi un istante, caricamento del file in corso...");
+        if (isFetchingDefault) return;
+
+        if (questionsPool && questionsPool.length > 0) {
+            isReviewMode = false;
+            startQuizSession();
             return;
         }
 
