@@ -266,25 +266,27 @@
         </div>
     </div>
 
-    <!-- Sezione Selezione File Excel -->
+    <!-- Sezione Selezione File (Doppia Opzione) -->
     <div id="file-selection-section">
         <div class="user-info">
             <span id="displayUserFile">Allievo: </span>
             <button class="btn btn-secondary" onclick="changeUser()">Cambia Allievo</button>
         </div>
         
-        <h3>📂 Archivio Quiz Ufficiale</h3>
+        <h3>📂 Scegli la fonte dei Quiz</h3>
         
+        <!-- Opzione 1: File predefinito su GitHub -->
         <div class="section-box">
-            <p><strong>Usa il file ufficiale predefinito caricato online:</strong></p>
+            <p><strong>Opzione 1: Usa il file ufficiale online (GitHub)</strong></p>
             <div class="file-info">
-                File predefinito: <b>quiz_ufficiale.xlsx</b>
+                File predefinito: <b id="officialFileNameDisplay">Quiz capacità prof Campania.xlsx</b>
             </div>
-            <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale</button>
+            <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale da GitHub</button>
         </div>
 
+        <!-- Opzione 2: Carica dal computer -->
         <div class="section-box">
-            <p><strong>Oppure carica temporaneamente un file Excel dal dispositivo:</strong></p>
+            <p><strong>Opzione 2: Carica un file Excel dal tuo computer</strong></p>
             <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"><br><br>
             <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica File Locale</button>
         </div>
@@ -312,7 +314,7 @@
         <!-- Pulsante visualizzazione errori -->
         <button id="viewErrorsBtn" class="btn-warning" onclick="showReviewSection()">📖 Visualizza Elenco Domande Errate</button><br><br>
 
-        <button class="btn btn-secondary" onclick="backToFileSelection()" style="background-color: #f39c12;">Cambia File Excel</button>
+        <button class="btn btn-secondary" onclick="backToFileSelection()" style="background-color: #f39c12;">Cambia Fonte File</button>
         <button class="btn btn-secondary" onclick="resetCurrentFileProgress()" style="background-color: #7f8c8d;">Azzera Progressi File</button>
     </div>
 
@@ -387,7 +389,8 @@
 </script>
 
 <script>
-    const OFFICIAL_EXCEL_FILENAME = "quiz_ufficiale.xlsx";
+    // Inserisci qui esattamente il nome del file Excel che hai caricato su GitHub
+    const OFFICIAL_EXCEL_FILENAME = "Quiz capacità prof Campania.xlsx";
 
     let userDatabase = [];
     let currentName = "";
@@ -627,6 +630,7 @@
         document.getElementById('file-selection-section').style.display = 'block';
         
         document.getElementById('displayUserFile').innerText = `Allievo: ${currentName}`;
+        document.getElementById('officialFileNameDisplay').innerText = OFFICIAL_EXCEL_FILENAME;
     }
 
     function changeUser() {
@@ -685,7 +689,7 @@
 
         const statusEl = document.getElementById('poolStatusDisplay');
         if (isFetchingDefault) {
-            statusEl.innerText = "⏳ Caricamento quiz ufficiale in corso...";
+            statusEl.innerText = "⏳ Caricamento file in corso...";
         } else if (questionsPool.length > 0) {
             statusEl.innerText = `Domande pronte/rimanenti nel ciclo: ${questionsPool.length}`;
         } else {
@@ -709,10 +713,9 @@
 
         try {
             const response = await fetch(OFFICIAL_EXCEL_FILENAME);
-            if (!response.ok) throw new Error("File quiz_ufficiale.xlsx non trovato nella repository.");
+            if (!response.ok) throw new Error("File non trovato su GitHub.");
             const arrayBuffer = await response.arrayBuffer();
             
-            // Controlla se c'è un pool salvato in precedenza
             let hasCloudData = await cloudLoadProgress();
             if (!hasCloudData || questionsPool.length === 0) {
                 errorCount = 0;
@@ -720,7 +723,7 @@
                 processExcelDataQuietly(arrayBuffer);
             }
         } catch (error) {
-            alert(`Impossibile trovare o caricare "${OFFICIAL_EXCEL_FILENAME}" su GitHub. Assicurati di aver caricato il file Excel con questo esatto nome nella stessa cartella della pagina web.`);
+            alert(`Impossibile trovare o caricare "${OFFICIAL_EXCEL_FILENAME}" da GitHub. Assicurati che il nome nel codice corrisponda esattamente a quello caricato online.`);
         } finally {
             isFetchingDefault = false;
             await updateMenuStatus();
@@ -730,7 +733,7 @@
     function loadCustomExcel() {
         const fileInput = document.getElementById('excelFile');
         if (fileInput.files.length === 0) {
-            alert("Seleziona prima un file Excel dal dispositivo!");
+            alert("Seleziona prima un file Excel dal tuo computer!");
             return;
         }
 
@@ -745,7 +748,7 @@
             let hasCloudData = await cloudLoadProgress();
 
             if (hasCloudData && questionsPool.length > 0) {
-                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande dal file Excel.`)) {
+                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande.`)) {
                     showUploadSection();
                     await updateMenuStatus();
                     fileInput.value = "";
@@ -862,7 +865,7 @@
                 await loadDefaultOfficialFile();
                 if (questionsPool.length === 0) return;
             } else {
-                alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel'.");
+                alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia Fonte File'.");
                 return;
             }
         }
