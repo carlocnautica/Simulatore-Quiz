@@ -284,10 +284,10 @@
             <button class="btn" onclick="loadDefaultOfficialFile()">Usa Quiz Ufficiale da GitHub</button>
         </div>
 
-        <!-- Opzione 2: Carica dal dispositivo (Caricamento immediato al tocco) -->
+        <!-- Opzione 2: Carica dal dispositivo -->
         <div class="section-box">
             <p><strong>Opzione 2: Scegli un file Excel dal tuo dispositivo</strong></p>
-            <input type="file" id="excelFile" onchange="loadCustomExcel(event)"><br>
+            <input type="file" id="excelFile" accept=".xlsx, .xls" onchange="loadCustomExcel(event)"><br>
             <p style="font-size: 12px; color: #666; margin-top: 8px;">(Il file si caricherà automaticamente non appena lo selezioni)</p>
         </div>
     </div>
@@ -389,7 +389,6 @@
 </script>
 
 <script>
-    // Nome del file ufficiale su GitHub (rinominalo senza spazi in GitHub, es: quiz_ufficiale.xlsx)
     const OFFICIAL_EXCEL_FILENAME = "quiz_ufficiale.xlsx";
 
     let userDatabase = [];
@@ -404,11 +403,13 @@
     let isFetchingDefault = false;
 
     function sanitizeKey(str) {
-        return str.replace(/[\.#\$\[\]\/]/g, "_");
+        return str ? str.replace(/[\.#\$\[\]\/]/g, "_") : "";
     }
 
     async function cloudSaveUsers(usersList) {
-        localStorage.setItem("nautica_db_utenti", JSON.stringify(usersList));
+        try {
+            localStorage.setItem("nautica_db_utenti", JSON.stringify(usersList));
+        } catch (e) {}
         if (window.isFirebaseReady && window.fbDb) {
             try {
                 window.fbSet(window.fbRef(window.fbDb, "utenti"), usersList).catch(() => {});
@@ -417,13 +418,13 @@
     }
 
     async function cloudLoadUsers() {
-        let rawDb = localStorage.getItem("nautica_db_utenti");
-        if (rawDb) {
-            try {
+        try {
+            let rawDb = localStorage.getItem("nautica_db_utenti");
+            if (rawDb) {
                 let parsed = JSON.parse(rawDb);
                 userDatabase = parsed.map(item => typeof item === 'object' && item !== null ? item.nome : item).filter(Boolean);
-            } catch(e) { userDatabase = []; }
-        }
+            }
+        } catch(e) { userDatabase = []; }
 
         if (window.isFirebaseReady && window.fbDb) {
             try {
@@ -432,7 +433,9 @@
                     let data = snapshot.val();
                     if (Array.isArray(data)) {
                         userDatabase = data.map(item => typeof item === 'object' && item !== null ? item.nome : item).filter(Boolean);
-                        localStorage.setItem("nautica_db_utenti", JSON.stringify(userDatabase));
+                        try {
+                            localStorage.setItem("nautica_db_utenti", JSON.stringify(userDatabase));
+                        } catch (e) {}
                     }
                 }
             } catch (e) {}
@@ -441,7 +444,7 @@
     }
 
     async function cloudSaveProgress() {
-        if (!currentFileKey) return;
+        if (!currentFileKey || !currentName) return;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
@@ -452,13 +455,15 @@
         };
 
         let keys = getStorageKeys();
-        if (!isReviewMode) {
-            localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
-            localStorage.setItem(keys.errors, errorCount);
-        }
-        localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+        try {
+            if (!isReviewMode) {
+                localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
+                localStorage.setItem(keys.errors, errorCount);
+            }
+            localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+        } catch (e) {}
 
-        if (window.isFirebaseReady && window.fbDb && currentName) {
+        if (window.isFirebaseReady && window.fbDb) {
             try {
                 window.fbSet(window.fbRef(window.fbDb, `progressi/${safeUser}/${safeFile}`), progressObj).catch(() => {});
             } catch (e) {}
@@ -466,18 +471,24 @@
     }
 
     async function cloudLoadProgress() {
-        if (!currentFileKey) return false;
+        if (!currentFileKey || !currentName) return false;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
         let keys = getStorageKeys();
-        let savedPool = localStorage.getItem(keys.pool);
-        let savedErrors = localStorage.getItem(keys.errors);
-        let savedHistory = localStorage.getItem(keys.history);
+        try {
+            let savedPool = localStorage.getItem(keys.pool);
+            let savedErrors = localStorage.getItem(keys.errors);
+            let savedHistory = localStorage.getItem(keys.history);
 
-        questionsPool = savedPool ? JSON.parse(savedPool) : [];
-        errorCount = savedErrors !== null ? parseInt(savedErrors) : 0;
-        errorHistory = savedHistory ? JSON.parse(savedHistory) : [];
+            questionsPool = savedPool ? JSON.parse(savedPool) : [];
+            errorCount = savedErrors !== null ? parseInt(savedErrors) : 0;
+            errorHistory = savedHistory ? JSON.parse(savedHistory) : [];
+        } catch (e) {
+            questionsPool = [];
+            errorCount = 0;
+            errorHistory = [];
+        }
 
         if (window.isFirebaseReady && window.fbDb) {
             try {
@@ -488,9 +499,11 @@
                     errorCount = data.errorCount || 0;
                     errorHistory = data.history || [];
                     
-                    localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
-                    localStorage.setItem(keys.errors, errorCount);
-                    localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+                    try {
+                        localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
+                        localStorage.setItem(keys.errors, errorCount);
+                        localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+                    } catch (e) {}
                 }
             } catch (e) {}
         }
@@ -498,14 +511,16 @@
     }
 
     async function cloudRemoveProgress() {
-        if (!currentFileKey) return;
+        if (!currentFileKey || !currentName) return;
         let safeFile = sanitizeKey(currentFileKey);
         let safeUser = sanitizeKey(currentName);
 
         let keys = getStorageKeys();
-        localStorage.removeItem(keys.pool);
-        localStorage.removeItem(keys.errors);
-        localStorage.removeItem(keys.history);
+        try {
+            localStorage.removeItem(keys.pool);
+            localStorage.removeItem(keys.errors);
+            localStorage.removeItem(keys.history);
+        } catch (e) {}
 
         if (window.isFirebaseReady && window.fbDb) {
             try {
@@ -531,13 +546,15 @@
         userDatabase = [...new Set(userDatabase)];
         updateUserDropdown();
 
-        const savedName = localStorage.getItem("nautica_current_name");
-        if (savedName && userDatabase.includes(savedName)) {
-            currentName = savedName;
-            let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-            currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
-            showFileSelectionSection();
-        }
+        try {
+            const savedName = localStorage.getItem("nautica_current_name");
+            if (savedName && userDatabase.includes(savedName)) {
+                currentName = savedName;
+                let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
+                currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
+                showFileSelectionSection();
+            }
+        } catch (e) {}
     }
 
     function updateUserDropdown() {
@@ -601,12 +618,14 @@
                 } catch(e) {}
             }
             
-            for (let i = localStorage.length - 1; i >= 0; i--) {
-                let key = localStorage.key(i);
-                if (key && key.includes("_" + selectedName)) {
-                    localStorage.removeItem(key);
+            try {
+                for (let i = localStorage.length - 1; i >= 0; i--) {
+                    let key = localStorage.key(i);
+                    if (key && key.includes("_" + selectedName)) {
+                        localStorage.removeItem(key);
+                    }
                 }
-            }
+            } catch (e) {}
 
             updateUserDropdown();
             selectElement.value = "";
@@ -616,9 +635,11 @@
 
     function loginUser(nome) {
         currentName = nome;
-        localStorage.setItem("nautica_current_name", currentName);
-        let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
-        currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
+        try {
+            localStorage.setItem("nautica_current_name", currentName);
+            let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
+            currentFileKey = lastFile ? lastFile : OFFICIAL_EXCEL_FILENAME;
+        } catch (e) {}
         showFileSelectionSection();
     }
 
@@ -634,7 +655,9 @@
     }
 
     function changeUser() {
-        localStorage.removeItem("nautica_current_name");
+        try {
+            localStorage.removeItem("nautica_current_name");
+        } catch (e) {}
         currentName = "";
         currentFileKey = OFFICIAL_EXCEL_FILENAME;
         document.getElementById('quiz-section').style.display = 'none';
@@ -705,7 +728,9 @@
 
     async function loadDefaultOfficialFile() {
         currentFileKey = OFFICIAL_EXCEL_FILENAME;
-        localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+        try {
+            localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+        } catch (e) {}
         
         isFetchingDefault = true;
         showUploadSection();
@@ -713,17 +738,20 @@
 
         try {
             const response = await fetch(OFFICIAL_EXCEL_FILENAME);
-            if (!response.ok) throw new Error("File non trovato su GitHub.");
+            if (!response.ok) throw new Error("File non trovato.");
             const arrayBuffer = await response.arrayBuffer();
             
             let hasCloudData = await cloudLoadProgress();
             if (!hasCloudData || questionsPool.length === 0) {
                 errorCount = 0;
                 errorHistory = [];
-                processExcelDataQuietly(arrayBuffer);
+                const loaded = processExcelData(arrayBuffer);
+                if (!loaded) {
+                    alert("Il file ufficiale non contiene domande valide o il formato non è corretto.");
+                }
             }
         } catch (error) {
-            alert(`Impossibile trovare "${OFFICIAL_EXCEL_FILENAME}" su GitHub. Assicurati di aver caricato il file Excel nella repository con questo esatto nome (senza spazi).`);
+            alert(`⚠️ Impossibile caricare "${OFFICIAL_EXCEL_FILENAME}" via fetch.\n\nNota: Se apri la pagina direttamente in locale (file://), i browser bloccano la lettura automatica dei file.\n\n👉 Usa l'Opzione 2 sotto per selezionare direttamente il file Excel dal tuo computer.`);
             backToFileSelection();
         } finally {
             isFetchingDefault = false;
@@ -731,13 +759,14 @@
         }
     }
 
-    // Caricamento immediato quando l'utente seleziona il file locale (funziona perfettamente anche su smartphone)
     function loadCustomExcel(event) {
         const file = event.target.files[0];
         if (!file) return;
 
         currentFileKey = file.name;
-        localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+        try {
+            localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+        } catch (e) {}
 
         const reader = new FileReader();
 
@@ -757,17 +786,17 @@
 
                 errorCount = 0;
                 errorHistory = [];
-                const loaded = processExcelDataQuietly(e.target.result);
+                const loaded = processExcelData(e.target.result);
                 event.target.value = "";
                 
                 if (loaded) {
                     showUploadSection();
                     await updateMenuStatus();
                 } else {
-                    alert("Il file selezionato non contiene domande valide nel formato atteso.");
+                    alert("Il file selezionato non contiene domande valide nel formato atteso (verifica che le colonne e i valori Vero/Falso siano corretti).");
                 }
             } catch (err) {
-                alert("Errore durante l'elaborazione del file.");
+                alert("Errore durante l'elaborazione del file Excel.");
             }
         };
 
@@ -785,7 +814,7 @@
         document.getElementById('activeFileDisplay').innerText = currentFileKey;
     }
 
-    function processExcelDataQuietly(arrayBuffer) {
+    function processExcelData(arrayBuffer) {
         try {
             const data = new Uint8Array(arrayBuffer);
             const workbook = XLSX.read(data, {type: 'array'});
@@ -799,37 +828,43 @@
 
             for (let i = 0; i < rows.length; i++) {
                 const row = rows[i];
-                if (row.length >= 7 && row[0]) {
-                    const domanda = String(row[0]).trim();
-                    const r1 = row[1];
-                    const v1 = parseTrueFalse(row[2]);
-                    const r2 = row[3];
-                    const v2 = parseTrueFalse(row[4]);
-                    const r3 = row[5];
-                    const v3 = parseTrueFalse(row[6]);
-                    
-                    let immagine = "";
-                    if (row.length >= 8 && row[7] !== undefined && row[7] !== "") {
-                        let imgVal = String(row[7]).trim();
-                        if (!imgVal.includes('.')) {
-                            imgVal = imgVal + ".jpg";
-                        }
-                        immagine = "immagini/" + imgVal;
-                    }
+                if (!row || row.length < 7 || !row[0]) continue;
 
-                    let correctAnswerIndex = -1;
-                    if (v1) correctAnswerIndex = 0;
-                    else if (v2) correctAnswerIndex = 1;
-                    else if (v3) correctAnswerIndex = 2;
+                const domanda = String(row[0]).trim();
+                
+                // Salta eventuale riga di intestazione (header)
+                if (i === 0 && (domanda.toLowerCase().includes("domanda") || domanda.toLowerCase().includes("quesito"))) {
+                    continue;
+                }
 
-                    if (correctAnswerIndex !== -1) {
-                        questionsPool.push({
-                            domanda: domanda,
-                            opzioni: [r1, r2, r3],
-                            corretta: correctAnswerIndex,
-                            immagine: immagine
-                        });
+                const r1 = row[1];
+                const v1 = parseTrueFalse(row[2]);
+                const r2 = row[3];
+                const v2 = parseTrueFalse(row[4]);
+                const r3 = row[5];
+                const v3 = parseTrueFalse(row[6]);
+                
+                let immagine = "";
+                if (row.length >= 8 && row[7] !== undefined && row[7] !== "") {
+                    let imgVal = String(row[7]).trim();
+                    if (!imgVal.includes('.')) {
+                        imgVal = imgVal + ".jpg";
                     }
+                    immagine = "immagini/" + imgVal;
+                }
+
+                let correctAnswerIndex = -1;
+                if (v1) correctAnswerIndex = 0;
+                else if (v2) correctAnswerIndex = 1;
+                else if (v3) correctAnswerIndex = 2;
+
+                if (correctAnswerIndex !== -1) {
+                    questionsPool.push({
+                        domanda: domanda,
+                        opzioni: [r1, r2, r3],
+                        corretta: correctAnswerIndex,
+                        immagine: immagine
+                    });
                 }
             }
 
