@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulatore Quiz</title>
+    <!-- Libreria per leggere i file Excel direttamente nel browser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 750px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        #user-section, #file-selection-section, #quiz-section, #review-section {
+            text-align: center;
+            padding: 25px;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .section-box {
+            background: #fafafa;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e1e1e1;
+            margin-bottom: 15px;
+        }
+        .btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .btn:hover { background-color: #45a049; }
+        .btn-submit {
+            background-color: #008CBA;
+            width: 100%;
+            margin-top: 20px;
+        }
+        .btn-submit:hover { background-color: #007bb5; }
+        .btn-secondary {
+            background-color: #e74c3c;
+            font-size: 14px;
+            padding: 6px 12px;
+            margin-top: 10px;
+        }
+        .btn-secondary:hover { background-color: #c0392b; }
+        .btn-delete {
+            background-color: #d9534f;
+            font-size: 14px;
+            padding: 8px 15px;
+            margin-top: 10px;
+            margin-left: 5px;
+        }
+        .btn-delete:hover { background-color: #c9302c; }
+        .btn-warning {
+            background-color: #f39c12;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        .btn-warning:hover { background-color: #d68910; }
+
+        .btn-review-quiz {
+            background-color: #8e44ad;
+            color: white;
+            padding: 12px 22px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            margin-top: 10px;
+            display: inline-block;
+        }
+        .btn-review-quiz:hover { background-color: #732d91; }
+
+        .file-info {
+            background: #e8f4fd;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #0277bd;
+        }
+
+        #file-selection-section, #quiz-section, #review-section { display: none; }
+        
+        .image-container {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+            display: none;
+        }
+
+        .question-text {
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .option-label {
+            display: block;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: 0.2s;
+            text-align: left;
+        }
+        .option-label:hover {
+            background: #f1f1f1;
+            border-color: #008CBA;
+        }
+        .option-label input {
+            margin-right: 10px;
+        }
+        
+        .option-label.correct-highlight {
+            background-color: #d4edda !important;
+            border-color: #28a745 !important;
+            color: #155724;
+            font-weight: bold;
+        }
+        .option-label.incorrect-highlight {
+            background-color: #f8d7da !important;
+            border-color: #dc3545 !important;
+            color: #721c24;
+        }
+
+        #stats {
+            text-align: center;
+            margin-top: 20px;
+            color: #444;
+            font-size: 15px;
+            font-weight: bold;
+        }
+        .feedback {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
+        .correct { background-color: #d4edda; color: #155724; }
+        .incorrect { background-color: #f8d7da; color: #721c24; }
+        .user-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #eef2f3;
+            padding: 10px 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #333;
+        }
+        select, input[type="text"] {
+            padding: 10px;
+            font-size: 16px;
+            width: 90%;
+            max-width: 350px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background: white;
+            margin-top: 5px;
+        }
+        
+        .error-card {
+            background: #fff;
+            border: 1px solid #f5c6cb;
+            border-left: 5px solid #dc3545;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: left;
+        }
+        .error-card p {
+            margin: 5px 0;
+        }
+        .error-q {
+            font-weight: bold;
+            color: #721c24;
+            font-size: 16px;
+        }
+        .correct-ans {
+            color: #155724;
+            font-weight: bold;
+        }
+        .user-ans {
+            color: #721c24;
+        }
+        .badge-mode {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #8e44ad;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Simulatore Quiz</h1>
+
+    <!-- Sezione Selezione / Inserimento Allievi -->
+    <div id="user-section">
+        <h3>Gestione Allievi</h3>
+        
+        <div class="section-box">
+            <p><strong>Seleziona un allievo esistente:</strong></p>
+            <select id="userSelect">
+                <option value="">-- Seleziona dalla lista --</option>
+            </select><br>
+            <button class="btn" onclick="setProfile()">Accedi con Selezionato</button>
+            <button class="btn btn-delete" onclick="deleteUser()">Elimina Allievo</button>
+        </div>
+
+        <div class="section-box">
+            <p><strong>Oppure inserisci un nuovo allievo:</strong></p>
+            <input type="text" id="newNameInput" placeholder="Nome e Cognome"><br>
+            <button class="btn" style="background-color: #008CBA;" onclick="addNewUser()">Aggiungi e Accedi</button>
+        </div>
+    </div>
+
+    <!-- Sezione Selezione File Excel -->
+    <div id="file-selection-section">
+        <div class="user-info">
+            <span id="displayUserFile">Allievo: </span>
+            <button class="btn btn-secondary" onclick="changeUser()">Cambia Allievo</button>
+        </div>
+        
+        <h3>📂 Selezione File Excel dei Quiz</h3>
+        
+        <div class="section-box">
+            <p><strong>Usa il file predefinito o conferma l'ultimo utilizzato:</strong></p>
+            <div class="file-info">
+                File attualmente memorizzato: <b id="fileNameDisplay">generatore quiz nautica ultimo.xlsx</b>
+            </div>
+            <button class="btn" onclick="confirmDefaultOrLastFile()">Conferma e Procedi con questo File</button>
+        </div>
+
+        <div class="section-box">
+            <p><strong>Oppure carica un nuovo file Excel (.xlsx):</strong></p>
+            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv"><br><br>
+            <button class="btn" style="background-color: #27ae60;" onclick="loadCustomExcel()">Carica e Usa Nuovo File</button>
+        </div>
+    </div>
+
+    <!-- Sezione Menu Principale -->
+    <div id="upload-section" style="display: none; text-align: center; padding: 25px; border: 2px dashed #ccc; border-radius: 8px; margin-bottom: 20px;">
+        <div class="user-info">
+            <span id="displayUser">Allievo: </span>
+            <button class="btn btn-secondary" onclick="changeUser()">Cambia Allievo</button>
+        </div>
+        
+        <div class="file-info">
+            📁 File attivo: <b id="activeFileDisplay"></b><br>
+            <span id="poolStatusDisplay" style="font-size: 13px; color: #333;"></span>
+        </div>
+
+        <button class="btn" id="startMainQuizBtn" onclick="startQuizSessionFromMenu()">Avvia o Riprendi Quiz Completo</button><br>
+
+        <!-- Pulsante Ripasso Errori -->
+        <button id="startErrorReviewBtn" class="btn-review-quiz" onclick="startErrorReviewMode()" style="display: none;">
+            🔄 Avvia Ripasso Solo Errori (<span id="errorReviewCount">0</span>)
+        </button><br><br>
+        
+        <!-- Pulsante visualizzazione errori -->
+        <button id="viewErrorsBtn" class="btn-warning" onclick="showReviewSection()">📖 Visualizza Elenco Domande Errate</button><br><br>
+
+        <button class="btn btn-secondary" onclick="backToFileSelection()" style="background-color: #f39c12;">Cambia File Excel</button>
+        <button class="btn btn-secondary" onclick="resetCurrentFileProgress()" style="background-color: #7f8c8d;">Azzera Progressi File</button>
+    </div>
+
+    <!-- Sezione Quiz -->
+    <div id="quiz-section">
+        <div class="user-info">
+            <span id="displayUserQuiz">Allievo: </span>
+            <button class="btn btn-secondary" onclick="exitToHome()">Menu Principale</button>
+        </div>
+
+        <div id="modeBadgeContainer" style="text-align: center;"></div>
+
+        <div class="image-container">
+            <img id="questionImage" src="" alt="Figura Quiz">
+        </div>
+
+        <div class="question-text" id="questionText">Caricamento...</div>
+        
+        <div id="options-container">
+            <label class="option-label" id="label0"><input type="radio" name="answer" value="0"><span id="opt0"></span></label>
+            <label class="option-label" id="label1"><input type="radio" name="answer" value="1"><span id="opt1"></span></label>
+            <label class="option-label" id="label2"><input type="radio" name="answer" value="2"><span id="opt2"></span></label>
+        </div>
+
+        <button class="btn btn-submit" id="submitBtn" onclick="handleAction()">Conferma Risposta</button>
+        
+        <div id="feedbackBox" class="feedback"></div>
+        <div id="stats">Domande rimanenti nel ciclo: 0 | ❌ Errori registrati: 0</div>
+    </div>
+
+    <!-- Sezione Revisione Errori -->
+    <div id="review-section">
+        <h2>📋 Elenco Domande Sbagliate</h2>
+        <p>Qui puoi esaminare gli errori commessi da <b id="reviewUserName"></b> sul file corrente:</p>
+        <div id="errorListContainer" style="max-height: 400px; overflow-y: auto; margin-top: 15px; padding-right: 5px;"></div>
+        <br>
+        <button class="btn-review-quiz" id="reviewSectionStartBtn" onclick="startErrorReviewMode()">🔄 Avvia Ripasso Interattivo</button><br><br>
+        <button class="btn" onclick="backToUploadFromReview()">Torna al Menu Principale</button>
+    </div>
+</div>
+
+<!-- Firebase SDKs (Moduli ES) -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, get, remove } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+    const firebaseConfig = { 
+        apiKey: "AIzaSyAADL5z3lttaOHxxZOdtNITHVI9UlNc8Wo", 
+        authDomain: "quiz-regione-campania.firebaseapp.com", 
+        projectId: "quiz-regione-campania", 
+        storageBucket: "quiz-regione-campania.firebasestorage.app", 
+        messagingSenderId: "867866358958", 
+        appId: "1:867866358958:web:ae8fd185d0942e4deae93f" 
+    };
+
+    try {
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        window.fbDb = db;
+        window.fbRef = ref;
+        window.fbSet = set;
+        window.fbGet = get;
+        window.fbRemove = remove;
+        window.isFirebaseReady = true;
+    } catch (err) {
+        console.warn("Firebase non inizializzato, utilizzo localStorage puro.", err);
+        window.isFirebaseReady = false;
+    }
+
+    if (typeof window.onFirebaseReady === "function") {
+        window.onFirebaseReady();
+    }
+</script>
+
+<script>
+    const DEFAULT_EXCEL_FILENAME = "generatore quiz nautica ultimo.xlsx";
+
+    let userDatabase = [];
+    let currentName = "";
+    let currentFileKey = DEFAULT_EXCEL_FILENAME;
+    let questionsPool = [];
+    let errorHistory = [];
+    let errorCount = 0;
+    let currentQuestion = null;
+    let isWaitingForNext = false;
+    let isReviewMode = false;
+    let isFetchingDefault = false;
+
+    function sanitizeKey(str) {
+        return str.replace(/[\.#\$\[\]\/]/g, "_");
+    }
+
+    // Gestione dati ibrida con fallback immediato su localStorage se Firebase è lento o assente
+    async function cloudSaveUsers(usersList) {
+        localStorage.setItem("nautica_db_utenti", JSON.stringify(usersList));
+        if (window.isFirebaseReady && window.fbDb) {
+            try {
+                window.fbSet(window.fbRef(window.fbDb, "utenti"), usersList).catch(() => {});
+            } catch (e) {}
+        }
+    }
+
+    async function cloudLoadUsers() {
+        // Carica subito da localStorage come base istantanea
+        let rawDb = localStorage.getItem("nautica_db_utenti");
+        if (rawDb) {
+            try {
+                let parsed = JSON.parse(rawDb);
+                userDatabase = parsed.map(item => typeof item === 'object' && item !== null ? item.nome : item).filter(Boolean);
+            } catch(e) { userDatabase = []; }
+        }
+
+        // Prova a sincronizzare da Firebase in background se disponibile
+        if (window.isFirebaseReady && window.fbDb) {
+            try {
+                const snapshot = await window.fbGet(window.fbRef(window.fbDb, "utenti"));
+                if (snapshot.exists()) {
+                    let data = snapshot.val();
+                    if (Array.isArray(data)) {
+                        userDatabase = data.map(item => typeof item === 'object' && item !== null ? item.nome : item).filter(Boolean);
+                        localStorage.setItem("nautica_db_utenti", JSON.stringify(userDatabase));
+                    }
+                }
+            } catch (e) {}
+        }
+        return userDatabase;
+    }
+
+    async function cloudSaveProgress() {
+        let safeFile = sanitizeKey(currentFileKey);
+        let safeUser = sanitizeKey(currentName);
+
+        let progressObj = {
+            pool: questionsPool,
+            errorCount: errorCount,
+            history: errorHistory
+        };
+
+        let keys = getStorageKeys();
+        if (!isReviewMode) {
+            localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
+            localStorage.setItem(keys.errors, errorCount);
+        }
+        localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+
+        if (window.isFirebaseReady && window.fbDb && currentName) {
+            try {
+                window.fbSet(window.fbRef(window.fbDb, `progressi/${safeUser}/${safeFile}`), progressObj).catch(() => {});
+            } catch (e) {}
+        }
+    }
+
+    async function cloudLoadProgress() {
+        let safeFile = sanitizeKey(currentFileKey);
+        let safeUser = sanitizeKey(currentName);
+
+        let keys = getStorageKeys();
+        let savedPool = localStorage.getItem(keys.pool);
+        let savedErrors = localStorage.getItem(keys.errors);
+        let savedHistory = localStorage.getItem(keys.history);
+
+        questionsPool = savedPool ? JSON.parse(savedPool) : [];
+        errorCount = savedErrors !== null ? parseInt(savedErrors) : 0;
+        errorHistory = savedHistory ? JSON.parse(savedHistory) : [];
+
+        if (window.isFirebaseReady && window.fbDb) {
+            try {
+                const snapshot = await window.fbGet(window.fbRef(window.fbDb, `progressi/${safeUser}/${safeFile}`));
+                if (snapshot.exists()) {
+                    let data = snapshot.val();
+                    questionsPool = data.pool || [];
+                    errorCount = data.errorCount || 0;
+                    errorHistory = data.history || [];
+                    
+                    localStorage.setItem(keys.pool, JSON.stringify(questionsPool));
+                    localStorage.setItem(keys.errors, errorCount);
+                    localStorage.setItem(keys.history, JSON.stringify(errorHistory));
+                }
+            } catch (e) {}
+        }
+        return questionsPool.length > 0;
+    }
+
+    async function cloudRemoveProgress() {
+        let safeFile = sanitizeKey(currentFileKey);
+        let safeUser = sanitizeKey(currentName);
+
+        let keys = getStorageKeys();
+        localStorage.removeItem(keys.pool);
+        localStorage.removeItem(keys.errors);
+        localStorage.removeItem(keys.history);
+
+        if (window.isFirebaseReady && window.fbDb) {
+            try {
+                window.fbRemove(window.fbRef(window.fbDb, `progressi/${safeUser}/${safeFile}`)).catch(() => {});
+            } catch (e) {}
+        }
+    }
+
+    window.onFirebaseReady = async function() {
+        await initAppMaster();
+    };
+
+    window.onload = async function() {
+        setTimeout(async () => {
+            if (!userDatabase.length) {
+                await initAppMaster();
+            }
+        }, 300);
+    };
+
+    async function initAppMaster() {
+        userDatabase = await cloudLoadUsers();
+        userDatabase = [...new Set(userDatabase)];
+        updateUserDropdown();
+
+        const savedName = localStorage.getItem("nautica_current_name");
+        if (savedName && userDatabase.includes(savedName)) {
+            currentName = savedName;
+            let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
+            currentFileKey = lastFile ? lastFile : DEFAULT_EXCEL_FILENAME;
+            showFileSelectionSection();
+        }
+    }
+
+    function updateUserDropdown() {
+        const selectElement = document.getElementById('userSelect');
+        selectElement.innerHTML = '<option value="">-- Seleziona dalla lista --</option>';
+        userDatabase.forEach(nome => {
+            const option = document.createElement('option');
+            option.value = nome;
+            option.textContent = nome;
+            selectElement.appendChild(option);
+        });
+    }
+
+    function setProfile() {
+        const selectElement = document.getElementById('userSelect');
+        const selectedName = selectElement.value;
+        if (!selectedName) {
+            alert("Seleziona un allievo dalla tendina!");
+            return;
+        }
+        loginUser(selectedName);
+    }
+
+    async function addNewUser() {
+        const inputField = document.getElementById('newNameInput');
+        const newName = inputField.value.trim();
+
+        if (!newName) {
+            alert("Inserisci il Nome e Cognome del nuovo allievo!");
+            return;
+        }
+
+        if (userDatabase.includes(newName)) {
+            alert("Esiste già un allievo con questo nome!");
+            return;
+        }
+
+        userDatabase.push(newName);
+        await cloudSaveUsers(userDatabase);
+        updateUserDropdown();
+        inputField.value = "";
+        
+        loginUser(newName);
+    }
+
+    async function deleteUser() {
+        const selectElement = document.getElementById('userSelect');
+        const selectedName = selectElement.value;
+        if (!selectedName) {
+            alert("Seleziona prima un allievo dalla tendina da eliminare!");
+            return;
+        }
+        if (confirm(`Sei sicuro di voler eliminare l'allievo "${selectedName}" e tutti i suoi progressi?`)) {
+            userDatabase = userDatabase.filter(nome => nome !== selectedName);
+            await cloudSaveUsers(userDatabase);
+
+            let safeUser = sanitizeKey(selectedName);
+            if (window.isFirebaseReady && window.fbDb) {
+                try {
+                    window.fbRemove(window.fbRef(window.fbDb, `progressi/${safeUser}`)).catch(() => {});
+                } catch(e) {}
+            }
+            
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+                let key = localStorage.key(i);
+                if (key && key.includes("_" + selectedName)) {
+                    localStorage.removeItem(key);
+                }
+            }
+
+            updateUserDropdown();
+            selectElement.value = "";
+            alert("Allievo eliminato con successo.");
+        }
+    }
+
+    function loginUser(nome) {
+        currentName = nome;
+        localStorage.setItem("nautica_current_name", currentName);
+        let lastFile = localStorage.getItem("nautica_last_file_" + currentName);
+        currentFileKey = lastFile ? lastFile : DEFAULT_EXCEL_FILENAME;
+        showFileSelectionSection();
+    }
+
+    function showFileSelectionSection() {
+        document.getElementById('user-section').style.display = 'none';
+        document.getElementById('quiz-section').style.display = 'none';
+        document.getElementById('review-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('file-selection-section').style.display = 'block';
+        
+        document.getElementById('displayUserFile').innerText = `Allievo: ${currentName}`;
+        document.getElementById('fileNameDisplay').innerText = currentFileKey;
+    }
+
+    function changeUser() {
+        localStorage.removeItem("nautica_current_name");
+        currentName = "";
+        document.getElementById('quiz-section').style.display = 'none';
+        document.getElementById('review-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('file-selection-section').style.display = 'none';
+        document.getElementById('user-section').style.display = 'block';
+        document.getElementById('userSelect').value = "";
+    }
+
+    function backToFileSelection() {
+        document.getElementById('upload-section').style.display = 'none';
+        showFileSelectionSection();
+    }
+
+    function exitToHome() {
+        if (!isReviewMode && currentQuestion && !isWaitingForNext) {
+            questionsPool.unshift(currentQuestion);
+            cloudSaveProgress();
+        }
+        currentQuestion = null;
+        document.getElementById('quiz-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'block';
+        updateMenuStatus();
+    }
+
+    document.addEventListener("keydown", function(event) {
+        if (event.key === "Enter") {
+            const quizSection = document.getElementById('quiz-section');
+            const userSection = document.getElementById('user-section');
+            if (quizSection.style.display === 'block') {
+                handleAction();
+            } else if (userSection.style.display === 'block') {
+                if (document.getElementById('userSelect').value) {
+                    setProfile();
+                }
+            }
+        }
+    });
+
+    function getStorageKeys() {
+        let safeFileKey = currentFileKey.replace(/[^a-zA-Z0-9]/g, "_");
+        return {
+            pool: `nautica_pool_${currentName}_${safeFileKey}`,
+            errors: `nautica_errors_${currentName}_${safeFileKey}`,
+            history: `nautica_error_history_${currentName}_${safeFileKey}`
+        };
+    }
+
+    async function updateMenuStatus() {
+        await cloudLoadProgress();
+
+        const statusEl = document.getElementById('poolStatusDisplay');
+        if (isFetchingDefault) {
+            statusEl.innerText = "⏳ Caricamento domande in corso...";
+        } else if (questionsPool.length > 0) {
+            statusEl.innerText = `Domande pronte/rimanenti nel ciclo: ${questionsPool.length}`;
+        } else {
+            statusEl.innerText = "Nessuna sessione attiva (pronto per nuovo ciclo)";
+        }
+        
+        document.getElementById('viewErrorsBtn').innerText = `📖 Visualizza Elenco Domande Errate (${errorHistory.length})`;
+        document.getElementById('errorReviewCount').innerText = errorHistory.length;
+        
+        const reviewBtn = document.getElementById('startErrorReviewBtn');
+        reviewBtn.style.display = errorHistory.length > 0 ? 'inline-block' : 'none';
+    }
+
+    async function confirmDefaultOrLastFile() {
+        localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+        await proceedToMenu();
+    }
+
+    function loadCustomExcel() {
+        const fileInput = document.getElementById('excelFile');
+        if (fileInput.files.length === 0) {
+            alert("Seleziona prima un file Excel!");
+            return;
+        }
+
+        const file = fileInput.files[0];
+        currentFileKey = file.name;
+        localStorage.setItem("nautica_last_file_" + currentName, currentFileKey);
+
+        const reader = new FileReader();
+
+        reader.onload = async function(e) {
+            isReviewMode = false;
+            let hasCloudData = await cloudLoadProgress();
+
+            if (hasCloudData && questionsPool.length > 0) {
+                if (confirm(`Esiste già una sessione salvata per "${currentFileKey}" (${questionsPool.length} domande rimanenti).\n\nPremi OK per riprendere da dove avevi lasciato, oppure ANNULLA per ricaricare da zero le domande dal nuovo file Excel.`)) {
+                    await proceedToMenu();
+                    fileInput.value = "";
+                    return;
+                }
+            }
+
+            errorCount = 0;
+            errorHistory = [];
+            const loaded = processExcelDataQuietly(e.target.result);
+            fileInput.value = "";
+            if (loaded) {
+                await proceedToMenu();
+            } else {
+                alert("Il file Excel selezionato non contiene domande valide nel formato atteso.");
+            }
+        };
+
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function proceedToMenu() {
+        document.getElementById('file-selection-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'block';
+        document.getElementById('displayUser').innerText = `Allievo: ${currentName}`;
+        document.getElementById('activeFileDisplay').innerText = currentFileKey;
+
+        await cloudLoadProgress();
+
+        if (questionsPool.length === 0 && currentFileKey === DEFAULT_EXCEL_FILENAME) {
+            isFetchingDefault = true;
+            updateMenuStatus();
+            try {
+                const response = await fetch(DEFAULT_EXCEL_FILENAME);
+                if (!response.ok) throw new Error("File non trovato sul server.");
+                const arrayBuffer = await response.arrayBuffer();
+                errorCount = 0;
+                errorHistory = [];
+                processExcelDataQuietly(arrayBuffer);
+            } catch (error) {
+                console.warn(error);
+            } finally {
+                isFetchingDefault = false;
+                await updateMenuStatus();
+            }
+        } else {
+            await updateMenuStatus();
+        }
+    }
+
+    function processExcelDataQuietly(arrayBuffer) {
+        try {
+            const data = new Uint8Array(arrayBuffer);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const rows = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+
+            if (rows.length === 0) return false;
+
+            questionsPool = [];
+
+            for (let i = 0; i < rows.length; i++) {
+                const row = rows[i];
+                if (row.length >= 7 && row[0]) {
+                    const domanda = String(row[0]).trim();
+                    const r1 = row[1];
+                    const v1 = parseTrueFalse(row[2]);
+                    const r2 = row[3];
+                    const v2 = parseTrueFalse(row[4]);
+                    const r3 = row[5];
+                    const v3 = parseTrueFalse(row[6]);
+                    
+                    let immagine = "";
+                    if (row.length >= 8 && row[7] !== undefined && row[7] !== "") {
+                        let imgVal = String(row[7]).trim();
+                        if (!imgVal.includes('.')) {
+                            imgVal = imgVal + ".jpg";
+                        }
+                        immagine = "immagini/" + imgVal;
+                    }
+
+                    let correctAnswerIndex = -1;
+                    if (v1) correctAnswerIndex = 0;
+                    else if (v2) correctAnswerIndex = 1;
+                    else if (v3) correctAnswerIndex = 2;
+
+                    if (correctAnswerIndex !== -1) {
+                        questionsPool.push({
+                            domanda: domanda,
+                            opzioni: [r1, r2, r3],
+                            corretta: correctAnswerIndex,
+                            immagine: immagine
+                        });
+                    }
+                }
+            }
+
+            if (questionsPool.length > 0) {
+                shuffleArray(questionsPool);
+                cloudSaveProgress();
+                return true;
+            }
+            return false;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    async function resetCurrentFileProgress() {
+        if (confirm(`Vuoi davvero azzerare i progressi e la cronologia errori di ${currentName} per il file "${currentFileKey}"?`)) {
+            await cloudRemoveProgress();
+            questionsPool = [];
+            errorHistory = [];
+            errorCount = 0;
+            if (currentFileKey === DEFAULT_EXCEL_FILENAME) {
+                await proceedToMenu();
+            } else {
+                alert("Progressi azzerati. Ricarica il file Excel per iniziare un nuovo ciclo.");
+                backToFileSelection();
+            }
+        }
+    }
+
+    async function startQuizSessionFromMenu() {
+        if (isFetchingDefault) {
+            alert("Attendi un istante, caricamento del file in corso...");
+            return;
+        }
+
+        await cloudLoadProgress();
+
+        if (!questionsPool || questionsPool.length === 0) {
+            if (currentFileKey === DEFAULT_EXCEL_FILENAME) {
+                isFetchingDefault = true;
+                updateMenuStatus();
+                try {
+                    const response = await fetch(DEFAULT_EXCEL_FILENAME);
+                    if (!response.ok) throw new Error("File non trovato");
+                    const arrayBuffer = await response.arrayBuffer();
+                    isFetchingDefault = false;
+                    if (processExcelDataQuietly(arrayBuffer)) {
+                        isReviewMode = false;
+                        startQuizSession();
+                    } else {
+                        alert("Il file predefinito non contiene domande valide.");
+                    }
+                } catch(e) {
+                    isFetchingDefault = false;
+                    updateMenuStatus();
+                    alert(`Impossibile caricare automaticamente "${DEFAULT_EXCEL_FILENAME}". Clicca su "Cambia File Excel" e selezionalo manualmente.`);
+                }
+                return;
+            } else {
+                alert("Nessuna domanda disponibile nel pool. Clicca su 'Cambia File Excel' per ricaricare il file.");
+                return;
+            }
+        }
+
+        isReviewMode = false;
+        startQuizSession();
+    }
+
+    async function startErrorReviewMode() {
+        await cloudLoadProgress();
+        if (!errorHistory || errorHistory.length === 0) {
+            alert("Non ci sono errori registrati da ripassare per questo file!");
+            return;
+        }
+
+        isReviewMode = true;
+        questionsPool = errorHistory.map(item => {
+            let correctIdx = item.opzioni.indexOf(item.rispostaCorretta);
+            return {
+                domanda: item.domanda,
+                opzioni: item.opzioni,
+                corretta: correctIdx !== -1 ? correctIdx : 0,
+                immagine: item.immagine || ""
+            };
+        });
+
+        shuffleArray(questionsPool);
+        startQuizSession();
+    }
+
+    function startQuizSession() {
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('review-section').style.display = 'none';
+        document.getElementById('quiz-section').style.display = 'block';
+        document.getElementById('displayUserQuiz').innerText = `Allievo: ${currentName} (${currentFileKey})`;
+        
+        const modeBadge = document.getElementById('modeBadgeContainer');
+        if (isReviewMode) {
+            modeBadge.innerHTML = `<span class="badge-mode">🔄 MODALITÀ RIPASSO ERRORI (${currentFileKey})</span>`;
+        } else {
+            modeBadge.innerHTML = ``;
+        }
+
+        nextQuestion();
+    }
+
+    function parseTrueFalse(val) {
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'number') return val === 1;
+        if (typeof val === 'string') {
+            const v = val.trim().toLowerCase();
+            return v === 'v' || v === 'vero' || v === 'true' || v === '1' || v === 'si' || v === 'sì';
+        }
+        return false;
+    }
+
+    function shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+    }
+
+    function nextQuestion() {
+        isWaitingForNext = false;
+        document.getElementById('feedbackBox').style.display = 'none';
+        document.getElementById('submitBtn').innerText = "Conferma Risposta";
+
+        for (let i = 0; i < 3; i++) {
+            const label = document.getElementById(`label${i}`);
+            label.classList.remove('correct-highlight', 'incorrect-highlight');
+            const radio = label.querySelector('input');
+            radio.checked = false;
+            radio.disabled = false;
+        }
+
+        if (questionsPool.length === 0) {
+            currentQuestion = null;
+            if (!isReviewMode) {
+                cloudRemoveProgress();
+            }
+            
+            let messageTitle = isReviewMode ? "🎉 Ripasso Completato!" : "🎉 Complimenti!";
+            let messageBody = isReviewMode 
+                ? `Hai ripassato e superato con successo tutte le domande sbagliate del file ${currentFileKey}!` 
+                : `Hai risposto correttamente a tutte le domande del file ${currentFileKey}!`;
+
+            document.getElementById('quiz-section').innerHTML = `
+                <h2>${messageTitle} ${currentName}</h2>
+                <p>${messageBody}</p>
+                <br>
+                <button class="btn" onclick="location.reload()">Torna al Menu Principale</button>
+            `;
+            return;
+        }
+
+        currentQuestion = questionsPool.shift();
+
+        const imgElement = document.getElementById('questionImage');
+        if (currentQuestion.immagine) {
+            imgElement.style.display = 'inline-block';
+            imgElement.src = currentQuestion.immagine;
+            
+            imgElement.onerror = function() {
+                let currentSrc = imgElement.src;
+                if (currentSrc.endsWith('.jpg')) {
+                    imgElement.src = currentSrc.replace('.jpg', '.JPG');
+                } else if (currentSrc.endsWith('.JPG')) {
+                    imgElement.src = currentSrc.replace('.JPG', '.png');
+                } else {
+                    imgElement.style.display = 'none';
+                }
+            };
+        } else {
+            imgElement.src = "";
+            imgElement.style.display = 'none';
+        }
+
+        document.getElementById('questionText').innerText = currentQuestion.domanda;
+        document.getElementById('opt0').innerText = currentQuestion.opzioni[0];
+        document.getElementById('opt1').innerText = currentQuestion.opzioni[1];
+        document.getElementById('opt2').innerText = currentQuestion.opzioni[2];
+
+        updateStats();
+    }
+
+    function handleAction() {
+        if (isWaitingForNext) {
+            nextQuestion();
+        } else {
+            checkAnswer();
+        }
+    }
+
+    function checkAnswer() {
+        const selected = document.querySelector('input[name="answer"]:checked');
+        if (!selected) {
+            alert("Seleziona una risposta!");
+            return;
+        }
+
+        const userChoice = parseInt(selected.value);
+        const correctAnswer = currentQuestion.corretta;
+        const feedbackBox = document.getElementById('feedbackBox');
+
+        for (let i = 0; i < 3; i++) {
+            document.querySelector(`#label${i} input`).disabled = true;
+        }
+
+        document.getElementById(`label${correctAnswer}`).classList.add('correct-highlight');
+        if (userChoice !== correctAnswer) {
+            document.getElementById(`label${userChoice}`).classList.add('incorrect-highlight');
+        }
+
+        isWaitingForNext = true;
+        document.getElementById('submitBtn').innerText = "Prossima Domanda ➔";
+
+        if (userChoice === correctAnswer) {
+            feedbackBox.className = "feedback correct";
+            feedbackBox.innerText = "Esatto! Premi Invio o clicca il pulsante per continuare.";
+            feedbackBox.style.display = 'block';
+
+            if (isReviewMode) {
+                errorHistory = errorHistory.filter(item => item.domanda !== currentQuestion.domanda);
+            }
+        } else {
+            feedbackBox.className = "feedback incorrect";
+            feedbackBox.innerText = `Errato! La risposta corretta era evidenziata in verde.`;
+            feedbackBox.style.display = 'block';
+
+            errorCount++;
+            
+            if (!errorHistory.some(item => item.domanda === currentQuestion.domanda)) {
+                errorHistory.push({
+                    domanda: currentQuestion.domanda,
+                    opzioni: currentQuestion.opzioni,
+                    rispostaData: currentQuestion.opzioni[userChoice],
+                    rispostaCorretta: currentQuestion.opzioni[correctAnswer],
+                    immagine: currentQuestion.immagine
+                });
+            }
+
+            questionsPool.push(currentQuestion);
+        }
+        
+        cloudSaveProgress();
+        updateStats();
+    }
+
+    function updateStats() {
+        const remaining = isWaitingForNext ? questionsPool.length : questionsPool.length + 1;
+        document.getElementById('stats').innerText = `Domande rimanenti nel ciclo: ${remaining} | ❌ Errori registrati: ${errorHistory.length}`;
+    }
+
+    async function showReviewSection() {
+        document.getElementById('quiz-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'none';
+        document.getElementById('reviewUserName').innerText = `${currentName} (File: ${currentFileKey})`;
+
+        let container = document.getElementById('errorListContainer');
+        container.innerHTML = "";
+
+        await cloudLoadProgress();
+
+        const reviewStartBtn = document.getElementById('reviewSectionStartBtn');
+
+        if (errorHistory.length === 0) {
+            container.innerHTML = "<p>Nessun errore registrato finora per questo allievo su questo file. Ottimo lavoro!</p>";
+            reviewStartBtn.style.display = 'none';
+        } else {
+            reviewStartBtn.style.display = 'inline-block';
+            errorHistory.forEach((err, index) => {
+                let card = document.createElement('div');
+                card.className = "error-card";
+                
+                let imgHtml = err.immagine ? `<div style="text-align:center; margin:10px 0;"><img src="${err.immagine}" style="max-width:100%; max-height:150px; border-radius:4px; border:1px solid #ccc;"></div>` : '';
+                
+                card.innerHTML = `
+                    <p class="error-q">#${index + 1} - ${err.domanda}</p>
+                    ${imgHtml}
+                    <p class="user-ans">❌ <b>Tua risposta:</b> ${err.rispostaData}</p>
+                    <p class="correct-ans">✔ <b>Risposta corretta:</b> ${err.rispostaCorretta}</p>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        document.getElementById('review-section').style.display = 'block';
+    }
+
+    async function backToUploadFromReview() {
+        document.getElementById('review-section').style.display = 'none';
+        document.getElementById('upload-section').style.display = 'block';
+        await updateMenuStatus();
+    }
+</script>
+
+</body>
+</html>
