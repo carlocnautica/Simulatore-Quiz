@@ -11,7 +11,6 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
         // Configurazione Firebase dedicata (quiz-regione-campania)
         const firebaseConfig = {
             apiKey: "AIzaSyAADL5z3lttaOHxxZOdtNITHVI9UlNc8Wo",
@@ -21,14 +20,11 @@
             messagingSenderId: "867866358958",
             appId: "1:867866358958:web:ae8fd185d0942e4deae93f"
         };
-
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-
         // Rendiamo le funzioni di Firebase accessibili all'oggetto globale App
         window.FB = { db, doc, getDoc, setDoc, updateDoc, deleteDoc, deleteField, collection, getDocs };
     </script>
-
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -83,6 +79,18 @@
             margin-top: 10px;
         }
         .btn:hover { background-color: #45a049; }
+        .btn-reload {
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            font-size: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .btn-reload:hover { background-color: #138496; }
         .btn-submit {
             background-color: #008CBA;
             width: 100%;
@@ -266,9 +274,10 @@
             <button class="btn btn-secondary" onclick="App.cambiaAllievo()">Cambia Allievo</button>
         </div>
         <div class="file-info">
-            File attivo: <b>quiz_ufficiale.xlsx</b>
+            File attivo: <b>quiz_ufficiale.xlsx</b> <span id="displayVersione" style="font-size: 12px; opacity: 0.8;"></span>
         </div>
-        <button class="btn" onclick="App.avviaQuizCompleto()">Avvia o Riprendi Quiz Completo</button><br><br>
+        <button class="btn" onclick="App.avviaQuizCompleto()">Avvia o Riprendi Quiz Completo</button><br>
+        <button class="btn-reload" onclick="App.forzaRicaricaExcel()">📥 Ricarica Quiz da Excel</button><br><br>
         <button id="btnRipassoErrori" class="btn-review-quiz" onclick="App.avviaRipassoErrori()" style="display: none;">
             🔄 Avvia Ripasso Solo Errori (<span id="countErrori">0</span>)
         </button><br><br>
@@ -308,6 +317,8 @@
 
 <script>
     const FILE_EXCEL = "quiz_ufficiale.xlsx";
+    // Aggiorna questa stringa ogni volta che carichi un nuovo Excel su GitHub
+    const VERSIONE_QUIZ = "2026-11-19-v2";
     const STORAGE_KEY_UTENTE = "quiz_ufficiale_utente_corrente";
     const COL_CONFIG = "quiz_ufficiale_app";
     const COL_DATI_UTENTI = "quiz_ufficiale_utenti_dati";
@@ -318,10 +329,12 @@
         poolDomande: [],
         cronologiaErrori: [],
         domandaCorrente: null,
+        versioneSalvata: "",
         inAttesaProssima: false,
         modalitaRipasso: false,
 
         async init() {
+            document.getElementById("displayVersione").textContent = `(ver. ${VERSIONE_QUIZ})`;
             while (!window.FB) {
                 await new Promise(r => setTimeout(r, 100));
             }
@@ -453,13 +466,25 @@
                 let snap = await window.FB.getDoc(ref);
                 if (snap.exists()) {
                     let data = snap.data();
-                    this.poolDomande = data.pool || [];
-                    this.domandaCorrente = data.corrente || null;
+                    this.versioneSalvata = data.versioneQuiz || "";
                     this.cronologiaErrori = data.errori || [];
+
+                    // Se VERSIONE_QUIZ è cambiata rispetto a quella salvata, azzera pool e corrente
+                    // così verrà scaricato il nuovo file Excel mantenendo lo storico errori
+                    if (this.versioneSalvata !== VERSIONE_QUIZ) {
+                        this.poolDomande = [];
+                        this.domandaCorrente = null;
+                        this.versioneSalvata = VERSIONE_QUIZ;
+                        await this.salvaStatoCloud();
+                    } else {
+                        this.poolDomande = data.pool || [];
+                        this.domandaCorrente = data.corrente || null;
+                    }
                 } else {
                     this.poolDomande = [];
                     this.domandaCorrente = null;
                     this.cronologiaErrori = [];
+                    this.versioneSalvata = VERSIONE_QUIZ;
                 }
             } catch(e) {
                 console.error("Errore carica dati utente:", e);
@@ -476,7 +501,8 @@
                 try {
                     let ref = window.FB.doc(window.FB.db, COL_DATI_UTENTI, this.utenteCorrente);
                     let datiDaSalvare = {
-                        errori: this.cronologiaErrori
+                        errori: this.cronologiaErrori,
+                        versioneQuiz: VERSIONE_QUIZ
                     };
                     if (!this.modalitaRipasso) {
                         datiDaSalvare.pool = this.poolDomande;
@@ -491,7 +517,8 @@
 
         async scaricaEProcessaExcel(callback) {
             try {
-                let res = await fetch(FILE_EXCEL);
+                const urlNoCache = `${FILE_EXCEL}?v=${Date.now()}`;
+                let res = await fetch(urlNoCache, { cache: "no-store" });
                 if (!res.ok) throw new Error("Impossibile trovare il file excel.");
                 let buf = await res.arrayBuffer();
                 let wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
@@ -515,12 +542,25 @@
                     }
                     return null;
                 }).filter(Boolean);
+
                 this.mescolaArray(tempPool);
                 this.poolDomande = tempPool;
+                this.domandaCorrente = null;
                 if (callback) callback();
             } catch (e) {
                 alert(`Errore nel caricamento del file Excel dei quiz. Assicurati che '${FILE_EXCEL}' sia presente.`);
             }
+        },
+
+        async forzaRicaricaExcel() {
+            if (!confirm("Ricaricare il quiz dal file Excel? Verrà azzerata la sessione in corso (ma lo storico errori resterà salvato).")) {
+                return;
+            }
+            this.modalitaRipasso = false;
+            await this.scaricaEProcessaExcel(async () => {
+                await this.salvaStatoCloud();
+                alert(`Quiz ricaricato con successo! Domande caricate: ${this.poolDomande.length}`);
+            });
         },
 
         parseTF(val) {
